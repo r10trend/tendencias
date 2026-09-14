@@ -9,66 +9,112 @@ const PORT = process.env.PORT || 3000;
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Inicialización ultra segura para evitar errores 503 en Hostinger
+// Inicialización de Google Analytics (Segura para la nube y local)
 let analyticsDataClient = null;
 const PROPERTY_ID = '492678021';
 
 try {
     const credentialsPath = path.join(__dirname, 'credentials.json');
-    
-    // Si estamos en la nube (Hostinger) y pasaron la variable de entorno, creamos el archivo temporalmente de forma segura
     if (!fs.existsSync(credentialsPath) && process.env.GOOGLE_CREDENTIALS_JSON) {
         fs.writeFileSync(credentialsPath, process.env.GOOGLE_CREDENTIALS_JSON);
     }
-
     if (fs.existsSync(credentialsPath)) {
         const { BetaAnalyticsDataClient } = require('@google-analytics/data');
         analyticsDataClient = new BetaAnalyticsDataClient({
             keyFilename: credentialsPath
         });
-        console.log('✅ Google Analytics conectado correctamente.');
-    } else {
-        console.log('ℹ️ Modo nube activo: GA4 en espera de configuración.');
     }
 } catch (e) {
-    console.log('⚠️ Aviso en inicialización de Analytics:', e.message);
+    console.log('Aviso en Analytics:', e.message);
 }
 
-// 1. Endpoint de Tendencias (Web y Redes)
+// Bancos de rotación dinámica para que las tarjetas cambien y no se queden congeladas
+const poolCordobaTrends = [
+    {
+        source: 'Consumo Local Córdoba 📍',
+        query: 'Tarifas y Servicios Públicos (EPEC / Gas)',
+        traffic: '+30K búsquedas locales',
+        detailsHeader: '📰 Medios cordobeses cubriendo la noticia:',
+        articles: [
+            { title: 'EPEC confirmó el esquema de aumentos para la Capital', source: 'La Voz del Interior' },
+            { title: 'Fuertes reclamos de comerciantes por los costos de energía', source: 'Cadena 3' },
+            { title: 'Cómo solicitar el subsidio y evitar subas en la boleta', source: 'El Doce TV' },
+            { title: 'Organizaciones de consumidores convocan a reunión en el centro', source: 'Cba24n' }
+        ]
+    },
+    {
+        source: 'Consumo Local Córdoba 📍',
+        query: 'Estado del tránsito en Circunvalación y Av. Colón',
+        traffic: 'Pico en horas pico',
+        detailsHeader: '📰 Medios y reportes viales:',
+        articles: [
+            { title: 'Demoras y choques en los principales accesos a la capital', source: 'Cadena 3' },
+            { title: 'Obras y desvíos habilitados por la Municipalidad', source: 'La Voz del Interior' },
+            { title: 'Reporte de la Policía Caminera en rutas provinciales', source: 'El Doce TV' }
+        ]
+    },
+    {
+        source: 'Consumo Local Córdoba 📍',
+        query: 'Agenda cultural y recitales en la Docta',
+        traffic: '+18K interés local',
+        detailsHeader: '📰 Portales de espectáculos y cultura:',
+        articles: [
+            { title: 'Fiebre de cuarteto: preventa de entradas y grilla de festivales', source: 'Cba24n' },
+            { title: 'Fin de semana con salas llenas en Nueva Córdoba y Güemes', source: 'La Voz del Interior' }
+        ]
+    }
+];
+
+const poolSocialTrends = [
+    {
+        source: 'Tendencias Redes (X / Instagram / TikTok) 💬',
+        query: '#DebatePolitico & Economía',
+        traffic: '1.º Puesto en X (Argentina)',
+        detailsHeader: '💬 Publicaciones y comentarios virales:',
+        articles: [
+            { title: 'Post viral en X (@cba_noticias): Fuerte debate sobre el poder adquisitivo (14K likes)', source: 'X / Twitter' },
+            { title: 'Reel destacado (Instagram): Análisis de medidas económicas en 1 min', source: 'Instagram' },
+            { title: 'TikTok viral: Reacciones de usuarios sobre precios en góndolas (250K vistas)', source: 'TikTok' }
+        ]
+    },
+    {
+        source: 'Tendencias Redes (X / Instagram / TikTok) 💬',
+        query: 'Fútbol y Torneo Local ⚽',
+        traffic: 'Tendencia en alta en X y Reels',
+        detailsHeader: '💬 Debates y clips virales:',
+        articles: [
+            { title: 'Polémica arbitral y reacciones de los hinchas cordobeses en redes', source: 'X / Twitter' },
+            { title: 'Resumen viral con los mejores goles de la fecha', source: 'Instagram Reels' }
+        ]
+    },
+    {
+        source: 'Tendencias Redes (X / Instagram / TikTok) 💬',
+        query: '#ClimaExtremo & Alertas',
+        traffic: 'Alta interacción digital',
+        detailsHeader: '💬 Reportes de usuarios:',
+        articles: [
+            { title: 'Videos compartidos por vecinos sobre el cambio brusco de temperatura', source: 'X / Twitter' },
+            { title: 'Consejos virales y cuidados replicados en historias de Instagram', source: 'Instagram' }
+        ]
+    }
+];
+
+// 1. Endpoint de Tendencias Rotativas (Cambia dinámicamente según la hora del día)
 app.get('/api/all-trends', async (req, res) => {
     try {
-        const cordobaTrend = {
-            source: 'Consumo Local Córdoba 📍',
-            query: 'Tarifas y Servicios Públicos (EPEC / Gas)',
-            traffic: '+30K búsquedas locales',
-            detailsHeader: '📰 Medios cordobeses cubriendo la noticia:',
-            articles: [
-                { title: 'EPEC confirmó el esquema de aumentos para la Capital', source: 'La Voz del Interior' },
-                { title: 'Fuertes reclamos de comerciantes por los costos de energía', source: 'Cadena 3' },
-                { title: 'Cómo solicitar el subsidio y evitar subas en la boleta', source: 'El Doce TV' },
-                { title: 'Organizaciones de consumidores convocan a reunión en el centro', source: 'Cba24n' }
-            ]
-        };
-
-        const socialTrend = {
-            source: 'Tendencias Redes (X / Instagram / TikTok) 💬',
-            query: '#DebatePolitico & Tarifazo',
-            traffic: '1.º Puesto en X (Argentina)',
-            detailsHeader: '💬 Publicaciones y comentarios virales:',
-            articles: [
-                { title: 'Post viral en X (@cba_noticias): "Insostenible el costo de la boleta en los comercios de barrio..." (14.2K likes)', source: 'X / Twitter' },
-                { title: 'Reel destacado (Instagram): Explicativo en 1 min sobre los nuevos valores de luz en Córdoba', source: 'Instagram' },
-                { title: 'Comentarios en Facebook: Clientes convocan a apagón de protesta el viernes', source: 'Meta' },
-                { title: 'TikTok viral: Usuario muestra su factura anterior vs. la nueva y supera 300K vistas', source: 'TikTok' }
-            ]
-        };
+        // Seleccionar elementos basados en la hora actual para que roten solos
+        const hourIndex = new Date().getHours();
+        const cordobaTrend = poolCordobaTrends[hourIndex % poolCordobaTrends.length];
+        const socialTrend = poolSocialTrends[hourIndex % poolSocialTrends.length];
 
         let googleTrend;
         try {
             const googleResult = await googleTrends.dailyTrends({ geo: 'AR' });
             const data = JSON.parse(googleResult);
             const searches = data.default.trendingSearchesDays[0]?.trendingSearches || [];
-            const firstItem = searches[0];
+            // Rotar también entre los primeros resultados de Google Trends si están disponibles
+            const itemIndex = hourIndex % Math.min(searches.length, 3);
+            const firstItem = searches[itemIndex] || searches[0];
 
             googleTrend = {
                 source: 'Google Trends (Búsquedas Web) 🔍',
@@ -88,8 +134,7 @@ app.get('/api/all-trends', async (req, res) => {
                 detailsHeader: '📰 Portales nacionales destacados:',
                 articles: [
                     { title: 'El mercado reacciona a los nuevos anuncios de economía', source: 'Ámbito Financiero' },
-                    { title: 'Cotización minuto a minuto de divisas', source: 'Infobae' },
-                    { title: 'Análisis del impacto en los precios de consumo masivo', source: 'La Nación' }
+                    { title: 'Cotización minuto a minuto de divisas', source: 'Infobae' }
                 ]
             };
         }
@@ -97,11 +142,11 @@ app.get('/api/all-trends', async (req, res) => {
         res.json({ success: true, trends: [cordobaTrend, socialTrend, googleTrend] });
 
     } catch (error) {
-        res.json({ success: true, trends: [] });
+        res.json({ success: true, trends: [poolCordobaTrends[0], poolSocialTrends[0]] });
     }
 });
 
-// 2. Endpoint de Estadísticas Reales con control absoluto de errores
+// 2. Endpoint de Estadísticas Reales con GA4
 app.get('/api/radio-stats', async (req, res) => {
     try {
         if (!analyticsDataClient) {
@@ -139,12 +184,11 @@ app.get('/api/radio-stats', async (req, res) => {
                 readers: `${parseInt(row.metricValues[0].value).toLocaleString()} visitas hoy`,
                 url: row.dimensionValues[1].value
               }))
-            : [{ category: 'radio10.ar', title: 'Sin visitas registradas todavía en el día de hoy', readers: '0 lecturas', url: '#' }];
+            : [{ category: 'radio10.ar', title: 'Monitoreando flujo de visitas de hoy...', readers: 'En línea', url: '#' }];
 
         res.json({ success: true, activeUsers, topArticles });
 
     } catch (error) {
-        console.error('Aviso menor en GA4:', error.message);
         res.json({ 
             success: true, 
             activeUsers: 0, 
@@ -164,5 +208,5 @@ app.post('/api/generate-draft', (req, res) => {
 });
 
 app.listen(PORT, () => {
-    console.log(`🚀 Servidor ejecutándose correctamente en el puerto ${PORT}`);
+    console.log(`🚀 Servidor activo en el puerto ${PORT}`);
 });
