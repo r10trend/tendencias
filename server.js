@@ -10,7 +10,6 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 app.get('/api/all-trends', async (req, res) => {
     try {
-        // --- 1. CONSUMO LOCAL CÓRDOBA ---
         const cordobaTrend = {
             source: 'Consumo Local Córdoba 📍',
             query: 'Tarifas y Servicios Públicos (EPEC / Gas)',
@@ -24,7 +23,6 @@ app.get('/api/all-trends', async (req, res) => {
             ]
         };
 
-        // --- 2. TENDENCIAS EN REDES SOCIALES (X, Instagram, TikTok) ---
         const socialTrend = {
             source: 'Tendencias Redes (X / Instagram / TikTok) 💬',
             query: '#DebatePolitico & Tarifazo',
@@ -38,7 +36,6 @@ app.get('/api/all-trends', async (req, res) => {
             ]
         };
 
-        // --- 3. GOOGLE TRENDS (Nacional / Web) ---
         let googleTrend;
         try {
             const googleResult = await googleTrends.dailyTrends({ geo: 'AR' });
@@ -73,7 +70,6 @@ app.get('/api/all-trends', async (req, res) => {
         res.json({ success: true, trends: [cordobaTrend, socialTrend, googleTrend] });
 
     } catch (error) {
-        console.log('Entregando panel completo de respaldo con las 3 columnas...');
         res.json({
             success: true,
             trends: [
@@ -81,34 +77,41 @@ app.get('/api/all-trends', async (req, res) => {
                     source: 'Consumo Local Córdoba 📍',
                     query: 'Aumento de Tarifas en Córdoba',
                     traffic: '+25K búsquedas',
-                    detailsHeader: '📰 Medios cordobeses cubriendo la noticia:',
-                    articles: [
-                        { title: 'Impacto del nuevo cuadro tarifario en la provincia', source: 'La Voz del Interior' },
-                        { title: 'Reclamos de cámaras empresarias y de comercio', source: 'Cadena 3' }
-                    ]
+                    detailsHeader: '📰 Medios cordobeses:',
+                    articles: [{ title: 'Impacto tarifario en la provincia', source: 'La Voz' }]
                 },
                 {
                     source: 'Tendencias Redes (X / Instagram) 💬',
                     query: '#DebatePolitico',
                     traffic: 'Tendencia #1',
-                    detailsHeader: '💬 Publicaciones y comentarios virales:',
-                    articles: [
-                        { title: 'Tuit viral: "Debate abierto por los aumentos en servicios..." (12K likes)', source: 'X / Twitter' },
-                        { title: 'Reel en IG: "Reacciones de usuarios al nuevo cuadro de luz"', source: 'Instagram' }
-                    ]
+                    detailsHeader: '💬 Virales en redes:',
+                    articles: [{ title: 'Tuit viral sobre servicios públicos', source: 'X' }]
                 },
                 {
                     source: 'Google Trends (Búsquedas Web) 🔍',
                     query: 'Dólar y Cotizaciones',
                     traffic: '+100K búsquedas',
-                    detailsHeader: '📰 Portales nacionales destacados:',
-                    articles: [
-                        { title: 'Tendencia de búsqueda en todo el país', source: 'Ámbito' }
-                    ]
+                    detailsHeader: '📰 Portales web:',
+                    articles: [{ title: 'Tendencia nacional en buscadores', source: 'Ámbito' }]
                 }
             ]
         });
     }
+});
+
+// Endpoint para simular métricas de tráfico en tiempo real de radio10.ar
+app.get('/api/radio-stats', (req, res) => {
+    // Generador dinámico de usuarios activos simulando picos reales de audiencia
+    const activeUsers = Math.floor(Math.random() * (4500 - 3200 + 1)) + 3200;
+    
+    const topArticles = [
+        { title: 'Último momento: Anuncian nuevas medidas económicas y detalles del impacto local', category: 'Política / Economía', readers: '1,420 leyendo ahora', url: '#' },
+        { title: 'Operativo en Córdoba: Cuáles son los puntos con demoras en Circunvalación', category: 'Tránsito / Córdoba', readers: '980 leyendo ahora', url: '#' },
+        { title: 'Fiebre de cuarteto: Se agotaron las entradas para el festival en el Estadio', category: 'Espectáculos', readers: '750 leyendo ahora', url: '#' },
+        { title: 'Pronóstico del tiempo: Qué dice el SMN para el cierre de semana en la docta', category: 'Clima', readers: '540 leyendo ahora', url: '#' }
+    ];
+
+    res.json({ success: true, activeUsers, topArticles });
 });
 
 app.post('/api/generate-draft', (req, res) => {
@@ -122,5 +125,5 @@ app.post('/api/generate-draft', (req, res) => {
 });
 
 app.listen(PORT, () => {
-    console.log(`🚀 Radar Profesional Activo en http://localhost:${PORT}`);
+    console.log(`🚀 Radar con Tráfico Activo en http://localhost:${PORT}`);
 });
