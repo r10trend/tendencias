@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Radar de Tendencias — Radio 10</title>
+    <style>
+        body { background: #0f172a; color: white; font-family: system-ui, sans-serif; padding: 25px; margin: 0; }
+        header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #334155; padding-bottom: 15px; margin-bottom: 20px; }
+        h1 { color: #38bdf8; font-size: 1.4rem; margin: 0; }
+        
+        /* Barra de Métricas en Tiempo Real */
+        .metrics-bar { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 25px; }
+        .metric-card { background: #1e293b; border: 1px solid #334155; padding: 15px; border-radius: 8px; text-align: center; }
+        .metric-card h4 { margin: 0 0 5px 0; color: #94a3b8; font-size: 0.85rem; text-transform: uppercase; }
+        .metric-card span { font-size: 1.3rem; font-weight: bold; color: #38bdf8; }
+
+        .container { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 20px; }
+        .card { background: #1e293b; padding: 20px; border-radius: 8px; border: 1px solid #334155; display: flex; flex-direction: column; justify-content: space-between; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
+        .card h3 { margin: 0 0 10px 0; font-size: 1.1rem; color: #f8fafc; }
+        .badge { display: inline-block; background: #0369a1; font-size: 0.75rem; padding: 3px 8px; border-radius: 12px; margin-bottom: 10px; font-weight: bold; }
+        .source-tag { color: #38bdf8; font-size: 0.85rem; margin-bottom: 10px; display: block; }
+        ul { padding-left: 18px; margin: 0 0 15px 0; font-size: 0.85rem; color: #94a3b8; }
+        li { margin-bottom: 4px; }
+        button { background: #22c55e; color: white; border: none; padding: 10px; cursor: pointer; border-radius: 6px; font-weight: bold; width: 100%; transition: background 0.2s; }
+        button:hover { background: #16a34a; }
+
+        /* Modal */
+        #modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); justify-content: center; align-items: center; padding: 15px; box-sizing: border-box; }
+        .modal-content { background: #1e293b; padding: 25px; border-radius: 8px; width: 100%; max-width: 650px; border: 1px solid #334155; }
+        .modal-content h2 { color: #38bdf8; margin-top: 0; }
+        textarea { width: 100%; height: 200px; background: #0f172a; color: white; border: 1px solid #334155; padding: 12px; border-radius: 6px; font-family: monospace; font-size: 0.9rem; margin-bottom: 15px; box-sizing: border-box; resize: vertical; }
+        .close-btn { background: #ef4444; width: auto; padding: 8px 16px; }
+        .close-btn:hover { background: #dc2626; }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>⚡ Radar de Tendencias (Web & Redes) — radio10.ar</h1>
+        <span id="live-clock" style="font-size: 0.9rem; color: #94a3b8;">--:--:--</span>
+    </header>
+
+    <!-- PANEL DE MÉTRICAS EN TIEMPO REAL -->
+    <div class="metrics-bar">
+        <div class="metric-card">
+            <h4>Temas Activos</h4>
+            <span id="metric-total">0</span>
+        </div>
+        <div class="metric-card">
+            <h4>Estado del Radar</h4>
+            <span style="color: #22c55e; font-size: 1.1rem;" id="metric-status">● En Línea</span>
+        </div>
+        <div class="metric-card">
+            <h4>Próxima Actualización</h4>
+            <span id="metric-timer">05:00</span>
+        </div>
+    </div>
+
+    <div class="container" id="trends-container">
+        Cargando métricas y datos en tiempo real...
+    </div>
+
+    <!-- Modal de Borrador -->
+    <div id="modal">
+        <div class="modal-content">
+            <h2>Borrador SEO Generado</h2>
+            <p style="font-size: 0.85rem; color: #94a3b8;">Copia y pega este contenido en el gestor de WordPress:</p>
+            <textarea id="draft-output" readonly></textarea>
+            <br>
+            <button class="close-btn" onclick="closeModal()">Cerrar / Volver</button>
+        </div>
+    </div>
+
+    <script>
+        let fetchedData = [];
+        let secondsLeft = 300; // 5 minutos de cuenta regresiva
+
+        // Reloj en tiempo real
+        setInterval(() => {
+            const now = new Date();
+            document.getElementById('live-clock').innerText = now.toLocaleTimeString();
+        }, 1000);
+
+        // Cuenta regresiva visual para la próxima sincronización
+        setInterval(() => {
+            if (secondsLeft > 0) {
+                secondsLeft--;
+                let mins = Math.floor(secondsLeft / 60);
+                let secs = secondsLeft % 60;
+                document.getElementById('metric-timer').innerText = `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+            }
+        }, 1000);
+
+        async function loadTrends() {
+            try {
+                const response = await fetch('/api/all-trends');
+                const data = await response.json();
+                
+                if (data.success) {
+                    fetchedData = data.trends;
+                    document.getElementById('metric-total').innerText = fetchedData.length;
+                    
+                    const container = document.getElementById('trends-container');
+                    container.innerHTML = '';
+
+                    data.trends.forEach((item, index) => {
+                        let articlesHtml = item.articles ? item.articles.map(a => `<li>${a.title} <em>(${a.source})</em></li>`).join('') : '';
+
+                        const card = document.createElement('div');
+                        card.className = 'card';
+                        card.innerHTML = `
+                            <div>
+                                <span class="badge">${item.source}</span>
+                                <h3>🔥 ${item.query}</h3>
+                                <span class="source-tag">Interés: ${item.traffic}</span>
+                                <ul>${articlesHtml}</ul>
+                            </div>
+                            <button onclick="generateDraft(${index})">✨ Generar Nota SEO</button>
+                        `;
+                        container.appendChild(card);
+                    });
+                    secondsLeft = 300; // Reiniciar contador
+                }
+            } catch (err) {
+                document.getElementById('metric-status').innerText = '▲ Error de Red';
+            }
+        }
+
+        async function generateDraft(index) {
+            const item = fetchedData[index];
+            try {
+                const res = await fetch('/api/generate-draft', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ query: item.query, source: item.source, articles: item.articles })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    const fullText = `TÍTULO:\n${data.draft.title}\n\nURL/SLUG:\n${data.draft.slug}\n\nCOPETE:\n${data.draft.lead}\n\nCUERPO:\n${data.draft.body}`;
+                    document.getElementById('draft-output').value = fullText;
+                    document.getElementById('modal').style.display = 'flex';
+                }
+            } catch (e) {
+                alert('No se pudo generar el borrador');
+            }
+        }
+
+        function closeModal() {
+            document.getElementById('modal').style.display = 'none';
+        }
+
+        loadTrends();
+        setInterval(loadTrends, 300000); // Refrescar datos cada 5 minutos
+    </script>
+</body>
+</html>
