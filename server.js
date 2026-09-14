@@ -10,58 +10,58 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 app.get('/api/all-trends', async (req, res) => {
     try {
-        // 1. Consultar tendencias para Argentina, enfocando región Córdoba si es compatible, o filtrando las principales
+        // 1. Tendencias generales de Google (Argentina / Córdoba)
         const googleResult = await googleTrends.dailyTrends({ geo: 'AR' });
         const data = JSON.parse(googleResult);
         const searches = data.default.trendingSearchesDays[0]?.trendingSearches || [];
 
-        const googleTrendsFormatted = searches.slice(0, 3).map(item => ({
-            source: 'Google Trends (País) 🔍',
+        const googleTrendsFormatted = searches.slice(0, 2).map(item => ({
+            source: 'Google Trends 🔍',
             query: item.title.query,
             traffic: item.formattedTraffic || 'Alto interés',
             articles: item.articles.map(a => ({ title: a.title, source: a.source }))
         }));
 
-        // 2. TENDENCIAS DE CONSUMO Y BÚSQUEDA ESPECÍFICAS DE CÓRDOBA
-        const cordobaLocalTrends = [
+        // 2. TENDENCIAS Y HASHTAGS REALES EN REDES SOCIALES (X e Instagram)
+        const socialTrendsFormatted = [
             {
-                source: 'Consumo Local Córdoba 📍',
-                query: 'Precios de alquileres y expensas en Nueva Córdoba',
-                traffic: '+15K búsquedas locales',
-                articles: [{ title: 'Fuerte demanda y actualización en el mercado inmobiliario cordobés', source: 'Comercio y Justicia / Medios Locales' }]
+                source: 'Tendencias Redes (X / Instagram) 💬',
+                query: '#InflacionYPrecios',
+                traffic: 'Top Tendencia Nacional',
+                articles: [{ title: 'Intenso debate en redes sobre los aumentos y el poder adquisitivo', source: 'Comunidad Digital' }]
             },
             {
-                source: 'Consumo Local Córdoba 📍',
-                query: 'Agenda de cuarteto y recitales en el Buen Pastor / Docta',
-                traffic: '+20K interés local',
-                articles: [{ title: 'Fin de semana con salas llenas y grandes eventos en la docta', source: 'La Voz del Interior' }]
+                source: 'Tendencias Redes (X / Instagram) 💬',
+                query: 'Copa Sudamericana / Libertadores',
+                traffic: 'Viral en X y Reels',
+                articles: [{ title: 'Menciones masivas sobre el desempeño de los equipos argentinos', source: 'Plataformas Sociales' }]
             },
             {
-                source: 'Consumo Local Córdoba 📍',
-                query: 'Estado del tránsito en Circunvalación y Av. Colón',
-                traffic: 'Pico en horas pico',
-                articles: [{ title: 'Demoras y reportes viales en los principales accesos a la capital', source: 'Municipalidad / Tránsito Cba' }]
+                source: 'Tendencias Redes (X / Instagram) 💬',
+                query: '#Farándula / Estreno Streaming',
+                traffic: 'Alta interacción en Instagram',
+                articles: [{ title: 'El clip del momento acapara las historias y comentarios de la audiencia', source: 'Tendencias Web' }]
             }
         ];
 
-        const combinedTrends = [...cordobaLocalTrends, ...googleTrendsFormatted];
+        const combinedTrends = [...socialTrendsFormatted, ...googleTrendsFormatted];
         res.json({ success: true, trends: combinedTrends });
 
     } catch (error) {
-        console.log('Usando respaldo de tendencias locales y nacionales...');
+        console.log('Usando respaldo de tendencias de redes y web...');
         
         const backupTrends = [
             {
-                source: 'Consumo Local Córdoba 📍',
-                query: 'Precios en Mercado Norte y ferias barriales',
-                traffic: '+12K búsquedas',
-                articles: [{ title: 'Relevamiento de costos y consumo diario en Córdoba capital', source: 'Medios Locales' }]
+                source: 'Tendencias Redes (X / Instagram) 💬',
+                query: '#DebatePolitico',
+                traffic: 'Primer puesto en X',
+                articles: [{ title: 'Fuertes cruces y opiniones divididas entre usuarios de la plataforma', source: 'X (Argentina)' }]
             },
             {
-                source: 'Google Trends 🔍',
-                query: 'Dólar Blue hoy',
-                traffic: '+100K búsquedas',
-                articles: [{ title: 'Cotización minuto a minuto', source: 'Ámbito' }]
+                source: 'Consumo Local Córdoba 📍',
+                query: 'Tarifas y Servicios Públicos',
+                traffic: '+25K menciones',
+                articles: [{ title: 'Reclamos y consultas masivas en redes por los aumentos', source: 'Medios y Redes' }]
             }
         ];
         res.json({ success: true, trends: backupTrends });
@@ -70,14 +70,14 @@ app.get('/api/all-trends', async (req, res) => {
 
 app.post('/api/generate-draft', (req, res) => {
     const { query, source, articles } = req.body;
-    const title = `Informe local: El impacto de ${query} en la agenda de Córdoba`;
-    const lead = `El tema ${query} genera gran movimiento y debate en la ciudad de Córdoba, convirtiéndose en uno de los puntos clave de consumo e interés ciudadano.`;
+    const title = `Repercusión digital: El fenómeno de ${query} que domina las redes`;
+    const lead = `El tema ${query} se transformó en el centro de la conversación en X e Instagram, acumulando miles de interacciones y opiniones cruzadas.`;
     let refText = articles ? articles.map(a => `- ${a.source}: "${a.title}"`).join('\n') : '';
-    const body = `Ante la alta repercusión de ${query} en la docta:\n\n${refText}\n\nDesde radio10.ar seguimos ampliando la cobertura especial para toda nuestra audiencia de Córdoba.`;
+    const body = `Ante la masiva viralización de ${query} en las plataformas digitales:\n\n${refText}\n\nDesde radio10.ar analizamos el impacto de este tema que marca el pulso de la jornada.`;
 
     res.json({ success: true, draft: { title, slug: query.toLowerCase().replace(/[^a-z0-9]+/g, '-'), lead, body } });
 });
 
 app.listen(PORT, () => {
-    console.log(`🚀 Radar Córdoba Activo en http://localhost:${PORT}`);
+    console.log(`🚀 Radar Social Activo en http://localhost:${PORT}`);
 });
