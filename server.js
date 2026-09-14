@@ -86,17 +86,22 @@ app.get('/api/all-trends', async (req, res) => {
     }
 });
 
-// 2. Endpoint que consume directamente el JSON interno de radio10.ar
+// 2. Endpoint que consume directamente el JSON interno de radio10.ar (Evita caché con cabeceras)
 app.get('/api/radio-stats', async (req, res) => {
     try {
-        const response = await fetch('https://radio10.ar/wp-json/radio10/v1/stats');
+        // Deshabilitar caché en esta respuesta del servidor Node
+        res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+        
+        const response = await fetch('https://radio10.ar/wp-json/radio10/v1/stats', {
+            cache: 'no-store'
+        });
         const data = await response.json();
         res.json(data);
     } catch (error) {
         console.error('Error al conectar con WordPress:', error.message);
         res.json({ 
             success: true, 
-            activeUsers: 1420, 
+            activeUsers: 0, 
             topArticles: [
                 { category: 'radio10.ar', title: 'Sincronizando notas recientes del portal...', readers: 'En línea', url: '#' }
             ] 
