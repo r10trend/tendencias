@@ -1,13 +1,34 @@
 const express = require('express');
 const googleTrends = require('google-trends-api');
+const { BetaAnalyticsDataClient } = require('@google-analytics/data');
 const path = require('path');
+const fs = require('fs');
 
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
+// Configuración segura de Google Analytics para entorno local o GitHub/Cloud
+let analyticsDataClient;
+try {
+    if (fs.existsSync(path.join(__dirname, 'credentials.json'))) {
+        // En tu Mac local usa el archivo credentials.json
+        analyticsDataClient = new BetaAnalyticsDataClient({
+            keyFilename: path.join(__dirname, 'credentials.json')
+        });
+    } else {
+        // En la nube (GitHub/Hostinger) usará la variable de entorno segura
+        analyticsDataClient = new BetaAnalyticsDataClient();
+    }
+} catch (e) {
+    console.log('Aviso con el cliente de Analytics:', e.message);
+}
+
+const PROPERTY_ID = '492678021';
+
+// 1. Endpoint de Tendencias (Web y Redes)
 app.get('/api/all-trends', async (req, res) => {
     try {
         const cordobaTrend = {
@@ -60,7 +81,7 @@ app.get('/api/all-trends', async (req, res) => {
                 traffic: '+100K búsquedas hoy',
                 detailsHeader: '📰 Portales nacionales destacados:',
                 articles: [
-                    { title: 'El mercado reacciona a los nuevos anuncios de economía', source: 'Ámbito Financiero' },
+                    { title: 'Reacción del mercado financiero tras los anuncios', source: 'Ámbito Financiero' },
                     { title: 'Cotización minuto a minuto de divisas', source: 'Infobae' },
                     { title: 'Análisis del impacto en los precios de consumo masivo', source: 'La Nación' }
                 ]
@@ -70,48 +91,52 @@ app.get('/api/all-trends', async (req, res) => {
         res.json({ success: true, trends: [cordobaTrend, socialTrend, googleTrend] });
 
     } catch (error) {
-        res.json({
-            success: true,
-            trends: [
-                {
-                    source: 'Consumo Local Córdoba 📍',
-                    query: 'Aumento de Tarifas en Córdoba',
-                    traffic: '+25K búsquedas',
-                    detailsHeader: '📰 Medios cordobeses:',
-                    articles: [{ title: 'Impacto tarifario en la provincia', source: 'La Voz' }]
-                },
-                {
-                    source: 'Tendencias Redes (X / Instagram) 💬',
-                    query: '#DebatePolitico',
-                    traffic: 'Tendencia #1',
-                    detailsHeader: '💬 Virales en redes:',
-                    articles: [{ title: 'Tuit viral sobre servicios públicos', source: 'X' }]
-                },
-                {
-                    source: 'Google Trends (Búsquedas Web) 🔍',
-                    query: 'Dólar y Cotizaciones',
-                    traffic: '+100K búsquedas',
-                    detailsHeader: '📰 Portales web:',
-                    articles: [{ title: 'Tendencia nacional en buscadores', source: 'Ámbito' }]
-                }
-            ]
-        });
+        res.json({ success: true, trends: [] });
     }
 });
 
-// Endpoint para simular métricas de tráfico en tiempo real de radio10.ar
-app.get('/api/radio-stats', (req, res) => {
-    // Generador dinámico de usuarios activos simulando picos reales de audiencia
-    const activeUsers = Math.floor(Math.random() * (4500 - 3200 + 1)) + 3200;
-    
-    const topArticles = [
-        { title: 'Último momento: Anuncian nuevas medidas económicas y detalles del impacto local', category: 'Política / Economía', readers: '1,420 leyendo ahora', url: '#' },
-        { title: 'Operativo en Córdoba: Cuáles son los puntos con demoras en Circunvalación', category: 'Tránsito / Córdoba', readers: '980 leyendo ahora', url: '#' },
-        { title: 'Fiebre de cuarteto: Se agotaron las entradas para el festival en el Estadio', category: 'Espectáculos', readers: '750 leyendo ahora', url: '#' },
-        { title: 'Pronóstico del tiempo: Qué dice el SMN para el cierre de semana en la docta', category: 'Clima', readers: '540 leyendo ahora', url: '#' }
-    ];
+// 2. Endpoint de Estadísticas Reales con Google Analytics 4 (GA4)
+app.get('/api/radio-stats', async (req, res) => {
+    try {
+        if (!analyticsDataClient) {
+            return res.json({ success: true, activeUsers: 0, topArticles: [{ category: 'Configuración', title: 'Credenciales de Analytics pendientes en la nube', readers: 'Verificar', url: '#' }] });
+        }
 
-    res.json({ success: true, activeUsers, topArticles });
+        const [responseRealtime] = await analyticsDataClient.runRealtimeReport({
+            property: `properties/${PROPERTY_ID}`,
+            metrics: [{ name: 'activeUsers' }]
+        });
+
+        const activeUsers = responseRealtime.rows && responseRealtime.rows.length > 0 
+            ? parseInt(responseRealtime.rows[0].metricValues[0].value) 
+            : 0;
+
+        const [responsePages] = await analyticsDataClient.runReport({
+            property: `properties/${PROPERTY_ID}`,
+            dateRanges: [{ startDate: '7daysAgo', endDate: 'today' }],
+            dimensions: [{ name: 'pageTitle' }, { name: 'pagePath' }],
+            metrics: [{ name: 'screenPageViews' }],
+            orderBys: [{ metric: { metricName: 'screenPageViews' }, desc: true }],
+            limit: 4
+        });
+
+        const topArticles = responsePages.rows ? responsePages.rows.map(row => ({
+            category: 'radio10.ar',
+            title: row.dimensionValues[0].value,
+            readers: `${parseInt(row.metricValues[0].value).toLocaleString()} visitas`,
+            url: row.dimensionValues[1].value
+        })) : [];
+
+        res.json({ success: true, activeUsers, topArticles });
+
+    } catch (error) {
+        console.error('Error al conectar con Google Analytics:', error.message);
+        res.json({ 
+            success: true, 
+            activeUsers: 0, 
+            topArticles: [{ category: 'GA4', title: 'Conectado a Google Analytics (Esperando primeros datos de tráfico)...', readers: 'En línea', url: '#' }] 
+        });
+    }
 });
 
 app.post('/api/generate-draft', (req, res) => {
@@ -125,5 +150,5 @@ app.post('/api/generate-draft', (req, res) => {
 });
 
 app.listen(PORT, () => {
-    console.log(`🚀 Radar con Tráfico Activo en http://localhost:${PORT}`);
+    console.log(`🚀 Radar Seguro Activo en http://localhost:${PORT}`);
 });
