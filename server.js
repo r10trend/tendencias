@@ -87,14 +87,20 @@ app.get('/api/all-trends', async (req, res) => {
 });
 
 // 2. Endpoint que consume directamente el JSON interno de radio10.ar (Evita caché con cabeceras)
+// 2. Endpoint que consume el JSON de WordPress forzando datos frescos sin caché
 app.get('/api/radio-stats', async (req, res) => {
     try {
-        // Deshabilitar caché en esta respuesta del servidor Node
+        // Evitar caché en la respuesta hacia el navegador
         res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
-        
-        const response = await fetch('https://radio10.ar/wp-json/radio10/v1/stats', {
-            cache: 'no-store'
+        res.setHeader('Pragma', 'no-cache');
+        res.setHeader('Expires', '0');
+
+        // Hacer la petición a WordPress agregando un parámetro de tiempo para que no devuelva caché
+        const wpUrl = 'https://radio10.ar/wp-json/radio10/v1/stats?t=' + Date.now();
+        const response = await fetch(wpUrl, {
+            headers: { 'Cache-Control': 'no-cache' }
         });
+        
         const data = await response.json();
         res.json(data);
     } catch (error) {
@@ -107,18 +113,4 @@ app.get('/api/radio-stats', async (req, res) => {
             ] 
         });
     }
-});
-
-app.post('/api/generate-draft', (req, res) => {
-    const { query, source, articles } = req.body;
-    const title = `Informe exclusivo: El impacto de ${query} en la agenda de Córdoba y las redes`;
-    const lead = `El tema ${query} se posicionó en el centro del debate público en Córdoba, impulsado por publicaciones virales en redes sociales y la cobertura de los principales medios de la provincia.`;
-    let refText = articles ? articles.map(a => `- ${a.source}: "${a.title}"`).join('\n') : '';
-    const body = `En las últimas horas, ${query} captó la atención masiva:\n\n${refText}\n\nDesde radio10.ar ampliamos el informe con todas las repercusiones en vivo.`;
-
-    res.json({ success: true, draft: { title, slug: query.toLowerCase().replace(/[^a-z0-9]+/g, '-'), lead, body } });
-});
-
-app.listen(PORT, () => {
-    console.log(`🚀 Servidor activo en el puerto ${PORT}`);
 });
